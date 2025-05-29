@@ -8,10 +8,13 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { db } from '../../firebase/firebaseConfig';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import ScreenWrapper from '../../components/ScreenWrapper';
+import { registerPushToken } from '../utils/registerPushToken';
+import useCheckAdminSession from '../hooks/checkAdminSession';
 
 const themes = {
   RenderATL: {
@@ -24,6 +27,8 @@ const themes = {
   },
 };
 
+const makeSecureKey = (key) => key.replace(/[^a-zA-Z0-9._-]/g, '_');
+
 export default function AdminLoginScreen() {
   const router = useRouter();
   const { event } = useLocalSearchParams();
@@ -32,6 +37,8 @@ export default function AdminLoginScreen() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [error, setError] = useState('');
+
+  useCheckAdminSession(event);
 
   const handleContinue = async () => {
     setError('');
@@ -57,14 +64,30 @@ export default function AdminLoginScreen() {
 
       const userData = snapshot.docs[0].data();
       const role = userData.role?.toLowerCase();
+      const fullName = `${firstName.trim()} ${lastName.trim()}`;
+
+      const secureEvent = makeSecureKey(event);
+      const secureName = makeSecureKey(fullName);
 
       if (role === 'admin') {
+        // ✅ Store session
+        await SecureStore.setItemAsync(`adminLoggedIn_${secureEvent}`, 'true');
+        await SecureStore.setItemAsync(`adminLoginTime_${secureEvent}`, Date.now().toString());
+        await SecureStore.setItemAsync(`adminName_${secureEvent}`, secureName);
+
+        await registerPushToken({
+          userId: fullName,
+          role: 'admin',
+          event,
+        });
+
         router.push({
           pathname: '/admin/home',
           params: {
             event,
-            name: `${firstName.trim()} ${lastName.trim()}`
-          }
+            name: fullName,
+            role: 'admin',
+          },
         });
       } else {
         setError('You are not authorized as an admin.');
@@ -72,6 +95,25 @@ export default function AdminLoginScreen() {
     } catch (err) {
       console.error(err);
       setError('An error occurred. Please try again.');
+    }
+  };
+
+  const logoutAdmin = async () => {
+    try {
+      const secureEvent = makeSecureKey(event);
+      const keys = [
+        `adminLoggedIn_${secureEvent}`,
+        `adminLoginTime_${secureEvent}`,
+        `adminName_${secureEvent}`,
+      ];
+
+      for (const key of keys) {
+        await SecureStore.deleteItemAsync(key);
+      }
+
+      router.replace(`/admin/login?event=${event}`);
+    } catch (err) {
+      console.error('Failed to log out admin:', err);
     }
   };
 

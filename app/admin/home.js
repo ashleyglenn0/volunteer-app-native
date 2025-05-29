@@ -214,7 +214,7 @@ export default function AdminHome() {
     iconName="notifications"
     label="Alert"
     onPress={() =>
-      router.push({ pathname: "/admin/alerts", params: { name, event: currentEvent } })
+      router.push({ pathname: "/alerts/AlertsInbox", params: { name, event: currentEvent, role: 'admin' } })
     }
     theme={theme}
   />

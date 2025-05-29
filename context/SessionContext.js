@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { AppState } from 'react-native';
 
 const SessionContext = createContext();
@@ -13,17 +13,17 @@ export const SessionProvider = ({ children }) => {
 
   const saveSession = async (data) => {
     setUser(data);
-    await AsyncStorage.setItem('session', JSON.stringify(data));
+    await SecureStore.setItemAsync('session', JSON.stringify(data));
     setLastActive(Date.now());
   };
 
   const clearSession = async () => {
     setUser(null);
-    await AsyncStorage.removeItem('session');
+    await SecureStore.deleteItemAsync('session');
   };
 
   const loadSession = async () => {
-    const stored = await AsyncStorage.getItem('session');
+    const stored = await SecureStore.getItemAsync('session');
     if (stored) setUser(JSON.parse(stored));
   };
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -9,9 +9,9 @@ import {
   LayoutAnimation,
   UIManager,
   Platform,
-} from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { db } from '../../firebase/firebaseConfig';
+} from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { db } from "../../firebase/firebaseConfig";
 import {
   collection,
   query,
@@ -21,42 +21,58 @@ import {
   setDoc,
   doc,
   Timestamp,
-} from 'firebase/firestore';
-import ScreenWrapper from '../../components/ScreenWrapper';
+} from "firebase/firestore";
+import { Picker } from "@react-native-picker/picker";
 
-if (Platform.OS === 'android') {
+import ScreenWrapper from "../../components/ScreenWrapper";
+
+if (Platform.OS === "android") {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
 }
 
 const themes = {
   RenderATL: {
-    background: '#fdf0e2',
-    primary: '#fe88df',
-    text: '#711b43',
+    background: "#fdf0e2",
+    primary: "#fe88df",
+    text: "#711b43",
   },
   ATW: {
-    background: '#f5f5f5',
-    primary: '#ffb89e',
-    text: '#4f2b91',
+    background: "#f5f5f5",
+    primary: "#ffb89e",
+    text: "#4f2b91",
   },
 };
 
 export default function TaskDashboardScreen() {
   const { event, name } = useLocalSearchParams();
   const router = useRouter();
-  const [currentEvent, setCurrentEvent] = useState(event || 'RenderATL');
+  const [currentEvent, setCurrentEvent] = useState(event || "RenderATL");
   const [taskData, setTaskData] = useState({});
   const [expandedTask, setExpandedTask] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedVolunteer, setSelectedVolunteer] = useState(null);
-  const [newTask, setNewTask] = useState('');
+  const [newTask, setNewTask] = useState("");
 
   const theme = themes[currentEvent] || themes.RenderATL;
 
   const tasks =
-    currentEvent === 'ATL Tech Week'
-      ? ['Registration', 'Room Setup', 'Tech Support', 'Food Truck Park', 'Stage Crew', 'General Support']
-      : ['Registration', 'Swag Distribution', 'Tech Support', 'Check-in Desk', 'Room Setup', 'General Support'];
+    currentEvent === "ATL Tech Week"
+      ? [
+          "Registration",
+          "Room Setup",
+          "Tech Support",
+          "Food Truck Park",
+          "Stage Crew",
+          "General Support",
+        ]
+      : [
+          "Registration",
+          "Swag Distribution",
+          "Tech Support",
+          "Check-in Desk",
+          "Room Setup",
+          "General Support",
+        ];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -65,11 +81,11 @@ export default function TaskDashboardScreen() {
       const end = new Date(today.setHours(23, 59, 59, 999));
 
       const q = query(
-        collection(db, 'task_checkins'),
-        where('event', '==', currentEvent),
-        where('checkinTime', '>=', Timestamp.fromDate(start)),
-        where('checkinTime', '<=', Timestamp.fromDate(end)),
-        where('status', '==', 'Check In for Task')
+        collection(db, "task_checkins"),
+        where("event", "==", currentEvent),
+        where("checkinTime", ">=", Timestamp.fromDate(start)),
+        where("checkinTime", "<=", Timestamp.fromDate(end)),
+        where("status", "==", "Check In for Task")
       );
 
       const snapshot = await getDocs(q);
@@ -77,7 +93,7 @@ export default function TaskDashboardScreen() {
 
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        const task = data.task || 'Unknown';
+        const task = data.task || "Unknown";
         if (!grouped[task]) grouped[task] = [];
         grouped[task].push({ ...data, id: docSnap.id });
       });
@@ -103,7 +119,7 @@ export default function TaskDashboardScreen() {
     if (!selectedVolunteer || !newTask) return;
 
     const now = new Date();
-    await updateDoc(doc(db, 'task_checkins', selectedVolunteer.id), {
+    await updateDoc(doc(db, "task_checkins", selectedVolunteer.id), {
       checkoutTime: now.toISOString(),
     });
 
@@ -117,10 +133,12 @@ export default function TaskDashboardScreen() {
       checkoutTime: null,
       teamLead: selectedVolunteer.teamLead,
       event: currentEvent,
+      reassignedBy: name, // Admin name from URL param
+      reassignedAt: new Date(),
     });
 
     setModalVisible(false);
-    setNewTask('');
+    setNewTask("");
   };
 
   return (
@@ -135,26 +153,44 @@ export default function TaskDashboardScreen() {
             onPress={() => toggleTask(task)}
             style={[styles.taskHeader, { borderColor: theme.primary }]}
           >
-            <Text style={[styles.taskTitle, { color: theme.text }]}>{task}</Text>
+            <Text style={[styles.taskTitle, { color: theme.text }]}>
+              {task}
+            </Text>
             <Text style={[styles.toggleText, { color: theme.primary }]}>
-              {expandedTask === task ? '▲' : '▼'}
+              {expandedTask === task ? "▲" : "▼"}
             </Text>
           </TouchableOpacity>
 
           {expandedTask === task && (
             <View style={styles.taskBody}>
               {(taskData[task] || []).map((v, idx) => (
-                <View key={idx} style={[styles.row, { borderColor: theme.primary }]}>
-                  <Text style={[styles.cell, { color: theme.text }]}>{v.first_name} {v.last_name}</Text>
-                  <Text style={[styles.cell, { color: theme.text }]}>Team Lead: {v.teamLead || 'N/A'}</Text>
-                  <Text style={[styles.cell, { color: theme.text }]}>Time: {calculateMinutes(v.checkinTime)} mins</Text>
-                  <TouchableOpacity onPress={() => { setSelectedVolunteer(v); setModalVisible(true); }}>
+                <View
+                  key={idx}
+                  style={[styles.row, { borderColor: theme.primary }]}
+                >
+                  <Text style={[styles.cell, { color: theme.text }]}>
+                    {v.first_name} {v.last_name}
+                  </Text>
+                  <Text style={[styles.cell, { color: theme.text }]}>
+                    Team Lead: {v.teamLead || "N/A"}
+                  </Text>
+                  <Text style={[styles.cell, { color: theme.text }]}>
+                    Time: {calculateMinutes(v.checkinTime)} mins
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelectedVolunteer(v);
+                      setModalVisible(true);
+                    }}
+                  >
                     <Text style={{ color: theme.primary }}>Reassign</Text>
                   </TouchableOpacity>
                 </View>
               ))}
               {(taskData[task] || []).length === 0 && (
-                <Text style={[styles.noData, { color: theme.text }]}>No check-ins for this task</Text>
+                <Text style={[styles.noData, { color: theme.text }]}>
+                  No check-ins for this task
+                </Text>
               )}
             </View>
           )}
@@ -162,10 +198,17 @@ export default function TaskDashboardScreen() {
       ))}
 
       <TouchableOpacity
-        onPress={() => router.push({ pathname: '/admin/home', params: { name, event: currentEvent } })}
+        onPress={() =>
+          router.push({
+            pathname: "/admin/home",
+            params: { name, event: currentEvent },
+          })
+        }
         style={[styles.backButton, { borderColor: theme.primary }]}
       >
-        <Text style={[styles.backText, { color: theme.primary }]}>← Back to Dashboard</Text>
+        <Text style={[styles.backText, { color: theme.primary }]}>
+          ← Back to Dashboard
+        </Text>
       </TouchableOpacity>
 
       <Modal visible={modalVisible} transparent animationType="fade">
@@ -175,12 +218,16 @@ export default function TaskDashboardScreen() {
             <Text style={styles.modalText}>
               {selectedVolunteer?.first_name} {selectedVolunteer?.last_name}
             </Text>
-            <TextInput
-              value={newTask}
-              onChangeText={setNewTask}
-              placeholder="Enter New Task"
-              style={styles.input}
-            />
+            <Picker
+              selectedValue={newTask}
+              onValueChange={(itemValue) => setNewTask(itemValue)}
+              style={styles.picker}
+            >
+              <Picker.Item label="Select a new task" value="" />
+              {tasks.map((task) => (
+                <Picker.Item key={task} label={task} value={task} />
+              ))}
+            </Picker>
             <View style={styles.modalButtons}>
               <TouchableOpacity onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelButton}>Cancel</Text>
@@ -199,27 +246,27 @@ export default function TaskDashboardScreen() {
 const styles = StyleSheet.create({
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   taskBlock: {
     marginBottom: 16,
   },
   taskHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     borderWidth: 2,
     borderRadius: 12,
     padding: 12,
   },
   taskTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   toggleText: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   taskBody: {
     marginTop: 10,
@@ -229,7 +276,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 10,
     padding: 12,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   cell: {
     fontSize: 14,
@@ -237,59 +284,64 @@ const styles = StyleSheet.create({
   },
   noData: {
     fontSize: 14,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   backButton: {
     marginTop: 24,
     borderWidth: 2,
     paddingVertical: 12,
     paddingHorizontal: 24,
-    alignSelf: 'center',
+    alignSelf: "center",
     borderRadius: 20,
   },
   backText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
     padding: 20,
   },
   modalContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 20,
     padding: 24,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 12,
-    textAlign: 'center',
+    textAlign: "center",
   },
   modalText: {
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 16,
   },
   input: {
-    backgroundColor: '#eee',
+    backgroundColor: "#eee",
     padding: 12,
     borderRadius: 12,
     marginBottom: 20,
   },
   modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
   },
   cancelButton: {
-    color: '#999',
+    color: "#999",
     fontSize: 16,
   },
   confirmButton: {
-    color: '#fe88df',
+    color: "#fe88df",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
+  },
+  picker: {
+    backgroundColor: '#eee',
+    borderRadius: 12,
+    marginBottom: 20,
   },
 });

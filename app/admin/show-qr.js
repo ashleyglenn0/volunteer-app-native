@@ -25,8 +25,8 @@ export default function ShowQRScreen() {
   const router = useRouter();
   const theme = themes[event] || themes.RenderATL;
 
-  const volunteerCheckInUrl = 'https://volunteercheckin-3659e.web.app';
-  const qrValue = `${volunteerCheckInUrl}?staff=${encodeURIComponent(name)}`;
+  const qrValue = `/admin/ScanAdminQR?staff=${encodeURIComponent(name)}&event=${encodeURIComponent(event)}`;
+
 
   return (
     <ScreenWrapper event={event}>

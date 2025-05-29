@@ -27,7 +27,7 @@ export default function RoleSelectScreen() {
   const theme = themes[event] || themes.RenderATL;
 
   const handleScan = () => {
-    router.push({ pathname: '/scan-admin', params: { event } });
+    router.push({ pathname: '/admin/ScanAdminQR', params: { event } });
   };
 
   const handleAdmin = () => {

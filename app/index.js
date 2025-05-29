@@ -11,6 +11,8 @@ import { Divider } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 
 const WelcomeScreen = () => {
+  console.log("✅ WelcomeScreen rendered");
+
   const router = useRouter();
   const screenWidth = Dimensions.get('window').width;
 
