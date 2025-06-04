@@ -6,9 +6,10 @@ import {
   TouchableOpacity,
   Platform,
 } from 'react-native';
-import Camera  from 'expo-camera';
+import Camera from 'expo-camera';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
+// Theme colors
 const themes = {
   RenderATL: {
     background: '#fdf0e2',
@@ -20,6 +21,9 @@ const themes = {
   },
 };
 
+// ✅ DEV BYPASS toggle (works for both iOS & Android in emulator / test builds)
+const isDevBypass = __DEV__ || process.env.EXPO_PUBLIC_QR_BYPASS === 'true';
+
 export default function ScanAdminQR() {
   const [hasPermission, setHasPermission] = useState(null);
   const [scanned, setScanned] = useState(false);
@@ -29,8 +33,8 @@ export default function ScanAdminQR() {
 
   useEffect(() => {
     (async () => {
-      if (Platform.OS === 'ios' && !Camera) {
-        setHasPermission(true); // Bypass for simulator
+      if (isDevBypass) {
+        setHasPermission(true); // ✅ Skip permission entirely in bypass mode
         return;
       }
 
@@ -51,12 +55,12 @@ export default function ScanAdminQR() {
     }
   };
 
-  if (Platform.OS === 'ios' && hasPermission && !Camera) {
-    // ✅ Simulator fallback view
+  // ✅ Use bypass logic for simulated scan view
+  if (isDevBypass && hasPermission) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Text style={[styles.instruction, { color: theme.text }]}>
-          Simulator: Tap below to simulate scan
+          Simulated: Tap below to simulate scan
         </Text>
         <TouchableOpacity
           onPress={() =>
@@ -71,8 +75,7 @@ export default function ScanAdminQR() {
     );
   }
 
-  if (hasPermission === null)
-    return <Text>Requesting camera permission…</Text>;
+  if (hasPermission === null) return <Text>Requesting camera permission…</Text>;
   if (hasPermission === false) return <Text>No access to camera</Text>;
 
   return (
