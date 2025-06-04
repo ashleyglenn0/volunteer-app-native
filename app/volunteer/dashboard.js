@@ -105,14 +105,14 @@ export default function VolunteerDashboard() {
           text: 'Log Out Anyway',
           style: 'destructive',
           onPress: async () => {
-            const key = `checkedIn_${sanitizeKey(name)}_${sanitizeKey(event)}`;
-            await SecureStore.deleteItemAsync(key);
+            await SecureStore.deleteItemAsync('volunteerSession');
             router.replace('/');
           },
         },
       ]
     );
   };
+  
 
   const handleHelpRequest = async () => {
     try {

@@ -11,6 +11,7 @@ import {
 } from "firebase/firestore";
 import ScreenWrapper from "../../components/ScreenWrapper";
 import { MaterialIcons } from "@expo/vector-icons";
+import * as SecureStore from "expo-secure-store";
 
 const themes = {
   RenderATL: {
@@ -35,6 +36,9 @@ export default function AdminHome() {
   const [rotations, setRotations] = useState([]);
 
   const theme = themes[currentEvent] || themes.RenderATL;
+
+  // Extract first name only
+  const firstName = name ? name.split('_')[0] : '';
 
   const handleSwitchEvent = () => {
     const newEvent = currentEvent === "RenderATL" ? "ATW" : "RenderATL";
@@ -127,7 +131,7 @@ export default function AdminHome() {
   return (
     <ScreenWrapper event={currentEvent} scroll={true}>
       <Text style={[styles.heading, { color: theme.text }]}>
-        Welcome, {name}
+        Welcome, {firstName}
       </Text>
       <Text style={[styles.subheading, { color: theme.text }]}>
         Event: {currentEvent}
@@ -184,7 +188,7 @@ export default function AdminHome() {
           label="Show My QR Code"
           onPress={() =>
             router.push({
-              pathname: '/admin/show-qr',
+              pathname: "/admin/show-qr",
               params: { name, event: currentEvent },
             })
           }
@@ -194,46 +198,60 @@ export default function AdminHome() {
 
       {/* Secondary Actions */}
       <View style={styles.iconGroup}>
-  <IconButton
-    iconName="calendar-today"
-    label="Schedule"
-    onPress={() =>
-      router.push({ pathname: "/admin/schedule", params: { name, event: currentEvent } })
-    }
-    theme={theme}
-  />
-  <IconButton
-    iconName="assignment"
-    label="Tasks"
-    onPress={() =>
-      router.push({ pathname: "/admin/task-dashboard", params: { name, event: currentEvent } })
-    }
-    theme={theme}
-  />
-  <IconButton
-    iconName="notifications"
-    label="Alert"
-    onPress={() =>
-      router.push({ pathname: "/alerts/AlertsInbox", params: { name, event: currentEvent, role: 'admin' } })
-    }
-    theme={theme}
-  />
-  <IconButton
-    iconName="bar-chart"
-    label="Reports"
-    onPress={() =>
-      router.push({ pathname: "/admin/reports", params: { name, event: currentEvent } })
-    }
-    theme={theme}
-  />
-  <IconButton
-    iconName="logout"
-    label="Logout"
-    onPress={() => router.replace("/")}
-    theme={theme}
-  />
-</View>
-
+        <IconButton
+          iconName="calendar-today"
+          label="Schedule"
+          onPress={() =>
+            router.push({
+              pathname: "/admin/schedule-bypass",
+              params: { name, event: currentEvent },
+            })
+          }
+          theme={theme}
+        />
+        <IconButton
+          iconName="assignment"
+          label="Tasks"
+          onPress={() =>
+            router.push({
+              pathname: "/admin/task-dashboard",
+              params: { name, event: currentEvent },
+            })
+          }
+          theme={theme}
+        />
+        <IconButton
+          iconName="notifications"
+          label="Alert"
+          onPress={() =>
+            router.push({
+              pathname: "/alerts/AlertsInbox",
+              params: { name, event: currentEvent, role: "admin" },
+            })
+          }
+          theme={theme}
+        />
+        <IconButton
+          iconName="bar-chart"
+          label="Reports"
+          onPress={() =>
+            router.push({
+              pathname: "/admin/reports",
+              params: { name, event: currentEvent },
+            })
+          }
+          theme={theme}
+        />
+        <IconButton
+          iconName="logout"
+          label="Logout"
+          onPress={async () => {
+            await SecureStore.deleteItemAsync("volunteerSession");
+            router.replace("/");
+          }}
+          theme={theme}
+        />
+      </View>
     </ScreenWrapper>
   );
 }

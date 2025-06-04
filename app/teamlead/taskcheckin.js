@@ -21,6 +21,8 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as SecureStore from 'expo-secure-store';
+
 
 const themes = {
   RenderATL: {
@@ -34,7 +36,7 @@ const themes = {
 };
 
 export default function TaskCheckIn() {
-  const { event, floor, teamlead: teamLead } = useLocalSearchParams(); // alias applied here
+  const { event = '', floor = '', teamlead: teamLead = '' } = useLocalSearchParams();
   const router = useRouter();
   const db = getFirestore();
   const theme = themes[event] || themes.RenderATL;
@@ -125,6 +127,11 @@ export default function TaskCheckIn() {
       });
 
       setSuccessMessage(`✅ ${firstName} ${lastName} successfully checked in!`);
+      await SecureStore.setItemAsync('volunteerSession', JSON.stringify({
+        name: `${firstName} ${lastName}`,
+        event,
+        role: 'volunteer'
+      }));
     } catch (err) {
       console.error(err);
       setError("❌ Something went wrong. Please try again.");

@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from "expo-secure-store";
 import {
   getFirestore,
   collection,
@@ -20,9 +20,9 @@ import {
   getDocs,
   doc,
   updateDoc,
+  addDoc,
 } from "firebase/firestore";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Picker } from "@react-native-picker/picker";
 
 const themes = {
   RenderATL: {
@@ -35,13 +35,6 @@ const themes = {
   },
 };
 
-const allFloors = ["Main Floor", "West Wing", "VIP"];
-const taskOptions = {
-  "Main Floor": ["Swag Distribution", "Stage Crew"],
-  "West Wing": ["Registration", "Tech Support"],
-  VIP: ["Badge Fix", "VIP Check-In"],
-};
-
 export default function TeamLeadDashboard() {
   const { name, event } = useLocalSearchParams();
   const router = useRouter();
@@ -51,20 +44,9 @@ export default function TeamLeadDashboard() {
   const [teamLeadFloor, setTeamLeadFloor] = useState("Main Floor");
   const [helpRequests, setHelpRequests] = useState([]);
   const [scheduledVolunteers, setScheduledVolunteers] = useState([]);
-  const [showReassignModal, setShowReassignModal] = useState(false);
-  const [selectedVolunteer, setSelectedVolunteer] = useState(null);
-  const [reassignTask, setReassignTask] = useState("");
-  const [reassignFloor, setReassignFloor] = useState("");
+  const [loggingOut, setLoggingOut] = useState(false);
 
-  const makeSecureKey = (key) => key.replace(/[^a-zA-Z0-9._-]/g, '_');
-
-  const openRenderAppStore = () => {
-    const appStoreLink =
-      Platform.OS === "ios"
-        ? "https://apps.apple.com/us/app/renderatl/id6451233141"
-        : "https://play.google.com/store/apps/details?id=com.renderatl.app";
-    Linking.openURL(appStoreLink);
-  };
+  const makeSecureKey = (key) => key.replace(/[^a-zA-Z0-9._-]/g, "_");
 
   useEffect(() => {
     const loadFloor = async () => {
@@ -82,46 +64,27 @@ export default function TeamLeadDashboard() {
   }, [name, event]);
 
   useEffect(() => {
+    const saveSession = async () => {
+      await SecureStore.setItemAsync('volunteerSession', JSON.stringify({
+        name,
+        event,
+        role: 'teamlead'
+      }));
+    };
+    saveSession();
+  }, [name, event]);
+
+  useEffect(() => {
     const fetchHelpRequests = async () => {
       try {
-        const now = Date.now() / 1000;
-        let q;
-
-        if (teamLeadFloor === "Rapid Response") {
-          q = query(
-            collection(db, "help_requests"),
-            where("event", "==", event),
-            where("resolved", "==", false),
-            where("pickedUpBy", "==", null),
-            where("roleToNotify", "==", "team_lead")
-          );
-        } else {
-          q = query(
-            collection(db, "help_requests"),
-            where("event", "==", event),
-            where("resolved", "==", false),
-            where("floor", "==", teamLeadFloor)
-          );
-        }
-
+        const q = query(
+          collection(db, "help_requests"),
+          where("event", "==", event),
+          where("resolved", "==", false),
+          where("floor", "==", teamLeadFloor)
+        );
         const snapshot = await getDocs(q);
-        const filteredData = snapshot.docs
-          .map((doc) => {
-            const data = doc.data();
-            const timestamp = data.timestamp?.seconds || 0;
-            const ageInSeconds = now - timestamp;
-            const isSecondAlert =
-              teamLeadFloor === "Rapid Response" &&
-              data.pickedUpBy === null &&
-              ageInSeconds >= 120;
-
-            return { ...data, id: doc.id, isSecondAlert };
-          })
-          .filter((doc) =>
-            teamLeadFloor === "Rapid Response" ? doc.isSecondAlert : true
-          );
-
-        setHelpRequests(filteredData);
+        setHelpRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       } catch (error) {
         console.error("Error fetching help requests:", error);
       }
@@ -134,36 +97,52 @@ export default function TeamLeadDashboard() {
         where("floor", "==", teamLeadFloor),
         where("checkedIn", "==", false)
       );
-
       const snapshot = await getDocs(q);
-      const data = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setScheduledVolunteers(data.slice(0, 5));
+      setScheduledVolunteers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).slice(0, 5));
     };
 
     fetchHelpRequests();
     fetchScheduledVolunteers();
   }, [event, teamLeadFloor]);
 
-  const handlePickUpHelpRequest = async (requestId) => {
+  const handleHelpRequest = async () => {
     try {
-      const requestRef = doc(db, "help_requests", requestId);
-      await updateDoc(requestRef, {
-        pickedUpBy: name,
-        pickedUpAt: new Date(),
+      await addDoc(collection(db, "alerts"), {
+        message: `🚨 Help Requested by ${name} on ${teamLeadFloor}`,
+        event,
+        severity: "error",
+        sendPush: true,
+        dismissedBy: [],
+        resolved: false,
+        timestamp: new Date(),
+        submittedBy: name,
+        floor: teamLeadFloor
       });
+  
+      Alert.alert("Help request sent successfully!");
     } catch (err) {
-      console.error("Failed to pick up help request:", err);
+      console.error("Error submitting help request:", err);
+      Alert.alert("Error submitting help request");
     }
   };
+  
 
   const handleLogout = async () => {
-    const rawKey = `teamLeadFloor_${name}_${event}`;
-    const secureKey = makeSecureKey(rawKey);
-    await SecureStore.deleteItemAsync(secureKey);
-    router.replace("/");
+    Alert.alert(
+      'Heads Up!',
+      'Logging out does NOT check you out of your shift.\nPlease see an admin to check out.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Log Out Anyway',
+          style: 'destructive',
+          onPress: async () => {
+            await SecureStore.deleteItemAsync('volunteerSession');
+            router.replace('/');
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -180,10 +159,26 @@ export default function TeamLeadDashboard() {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
             🧰 Team Lead Tools
           </Text>
-          <TouchableOpacity onPress={() =>
-            router.push(`/teamlead/helpinbox?name=${name}&event=${event}`)}>
+          <TouchableOpacity
+            onPress={() =>
+              router.push(`/teamlead/helpinbox?name=${name}&event=${event}`)
+            }
+          >
             <Text style={[styles.link, { color: theme.text }]}>
               🔗 View Help Inbox
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() =>
+              router.push({
+                pathname: "/teamlead/floor-overview",
+                params: { event, floor: teamLeadFloor },
+              })
+            }
+          >
+            <Text style={[styles.link, { color: theme.text }]}>
+              🔗 View Floor Roster
             </Text>
           </TouchableOpacity>
         </View>
@@ -211,21 +206,24 @@ export default function TeamLeadDashboard() {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
             📖 Quick Links
           </Text>
-          <TouchableOpacity onPress={() => Linking.openURL("https://docs.google.com/document/d/1SOTpiN8kImUlg8pwKnOA5RvYTYM7PztG3Cx1q5LwUFM")}>
+          <TouchableOpacity
+            onPress={() =>
+              Linking.openURL("https://docs.google.com/document/d/1SOTpiN8kImUlg8pwKnOA5RvYTYM7PztG3Cx1q5LwUFM")
+            }
+          >
             <Text style={[styles.link, { color: theme.text }]}>🔗 Briefing Book</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => Linking.openURL("https://docs.google.com/document/d/1hfUp3M084ql5a4iMtezsJbVbQZEAnkUBMo63WZozphw")}>
+          <TouchableOpacity
+            onPress={() =>
+              Linking.openURL("https://docs.google.com/document/d/1hfUp3M084ql5a4iMtezsJbVbQZEAnkUBMo63WZozphw")
+            }
+          >
             <Text style={[styles.link, { color: theme.text }]}>🔗 FAQ</Text>
           </TouchableOpacity>
         </View>
 
         <View style={{ marginTop: 12 }}>
-          <TouchableOpacity onPress={openRenderAppStore}>
-            <Text style={[styles.footerNote, { color: theme.text, textDecorationLine: "underline" }]}>
-              📅 Download the RenderATL app to view the full event schedule
-            </Text>
-          </TouchableOpacity>
-          <Text style={[styles.footerNote, { color: theme.text, marginTop: 6 }]}>
+          <Text style={[styles.footerNote, { color: theme.text }]}>
             📘 The full volunteer schedule is available in the Briefing Book.
           </Text>
         </View>
@@ -241,13 +239,15 @@ export default function TeamLeadDashboard() {
         <IconButton
           label="Help"
           icon={<MaterialIcons name="support-agent" size={28} color={theme.text} />}
-          onPress={() => router.push(`/teamlead/help?name=${name}&event=${event}`)}
+          onPress={handleHelpRequest}
           theme={theme}
         />
         <IconButton
           label="Manual Check In"
           icon={<MaterialIcons name="edit" size={28} color={theme.text} />}
-          onPress={() => router.push(`/teamlead/taskcheckin?teamlead=${encodeURIComponent(name)}&event=${event}&floor=${encodeURIComponent(teamLeadFloor)}`)}
+          onPress={() =>
+            router.push(`/teamlead/taskcheckin?teamlead=${encodeURIComponent(name)}&event=${event}&floor=${encodeURIComponent(teamLeadFloor)}`)
+          }
           theme={theme}
         />
         <IconButton
@@ -273,35 +273,14 @@ function IconButton({ label, icon, onPress, theme }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollArea: { padding: 24, paddingBottom: 100 },
-  title: {
-    fontSize: 26,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 6,
-  },
+  title: { fontSize: 26, fontWeight: "bold", textAlign: "center", marginBottom: 6 },
   sub: { fontSize: 16, textAlign: "center", marginBottom: 20 },
-  section: {
-    borderWidth: 2,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 24,
-  },
+  section: { borderWidth: 2, borderRadius: 12, padding: 16, marginBottom: 24 },
   sectionTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 10 },
   item: { fontSize: 15, marginBottom: 4 },
   link: { fontSize: 15, textDecorationLine: "underline", marginBottom: 8 },
-  footer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    borderTopWidth: 2,
-    paddingVertical: 12,
-  },
+  footer: { flexDirection: "row", justifyContent: "space-around", borderTopWidth: 2, paddingVertical: 12 },
   iconButton: { alignItems: "center" },
   iconLabel: { marginTop: 4, fontSize: 14, fontWeight: "600" },
-  footerNote: {
-    marginTop: 8,
-    marginBottom: 8,
-    fontSize: 12,
-    textAlign: "center",
-    fontStyle: "italic",
-  },
+  footerNote: { marginTop: 8, marginBottom: 8, fontSize: 12, textAlign: "center", fontStyle: "italic" },
 });

@@ -1,23 +1,18 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-} from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import ScreenWrapper from '../components/ScreenWrapper';
+import React from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import ScreenWrapper from "../components/ScreenWrapper";
 
 const themes = {
   RenderATL: {
-    background: '#fdf0e2',
-    primary: '#fe88df',
-    text: '#711b43',
+    background: "#fdf0e2",
+    primary: "#fe88df",
+    text: "#711b43",
   },
   ATW: {
-    background: '#f5f5f5',
-    primary: '#ffb89e',
-    text: '#4f2b91',
+    background: "#f5f5f5",
+    primary: "#ffb89e",
+    text: "#4f2b91",
   },
 };
 
@@ -27,12 +22,15 @@ export default function RoleSelectScreen() {
   const theme = themes[event] || themes.RenderATL;
 
   const handleScan = () => {
-    router.push({ pathname: '/admin/ScanAdminQR', params: { event } });
+    router.push({ pathname: "/admin/ScanAdminQR", params: { event } });
   };
 
   const handleAdmin = () => {
-    router.push({ pathname: '/admin/login', params: { event } });
+    router.push({ pathname: "/admin/login", params: { event } });
   };
+  const handlePriorCheckIn = () => {
+    router.push({ pathname: "/AlreadyCheckedIn", params: { event } });
+  }
 
   return (
     <ScreenWrapper event={event} scroll={true}>
@@ -61,7 +59,12 @@ export default function RoleSelectScreen() {
         >
           <Text style={styles.buttonText}>I’m an Admin</Text>
         </TouchableOpacity>
-
+        <TouchableOpacity
+          onPress={handlePriorCheckIn}
+          style={[styles.button, { backgroundColor: theme.primary }]}
+          >
+            <Text style={styles.buttonText}>Already Checked In?</Text>
+          </TouchableOpacity>
         <Text style={[styles.footerText, { color: theme.text }]}>
           Admins must start check-in sessions before others may proceed.
         </Text>
@@ -72,7 +75,7 @@ export default function RoleSelectScreen() {
 
 const styles = StyleSheet.create({
   backButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 40,
     left: 10,
     padding: 8,
@@ -80,15 +83,15 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   center: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 40,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 6,
   },
   subtitle: {
@@ -96,25 +99,25 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   button: {
-    width: '100%',
+    width: "100%",
     paddingVertical: 16,
     marginBottom: 20,
     borderRadius: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
   },
   buttonText: {
     fontSize: 18,
-    color: '#fff',
-    fontWeight: '600',
+    color: "#fff",
+    fontWeight: "600",
   },
   footerText: {
     fontSize: 12,
     marginTop: 40,
-    textAlign: 'center',
+    textAlign: "center",
     opacity: 0.7,
   },
 });
