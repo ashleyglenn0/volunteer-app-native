@@ -23,8 +23,10 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 
+// Helper sanitize for SecureStore keys
 const sanitizeKey = (str) => (str || '').replace(/[^a-zA-Z0-9._-]/g, '_');
 
+// Theme colors for each event
 const themes = {
   RenderATL: {
     background: '#fdf0e2',
@@ -32,7 +34,7 @@ const themes = {
   },
   ATW: {
     background: '#f5f5f5',
-    text: '#4f2b91',
+    text: '#ffb89e',
   },
 };
 
@@ -44,7 +46,9 @@ export default function VolunteerDashboard() {
 
   const isATW = event?.toLowerCase() === 'atw';
   const [floor, setFloor] = useState('');
+  const [floorTeamLeads, setFloorTeamLeads] = useState([]);
 
+  // Determine active schedule day
   const today = new Date();
   const day = today.getDate();
   let activeDay = isATW ? 'June8' : 'June11';
@@ -60,15 +64,13 @@ export default function VolunteerDashboard() {
   const upcomingBlocks = getTimeBlockEvents(selectedSchedule, isATW);
   const highlights = getHighlightsFromSchedule(selectedSchedule);
 
+  // Load volunteer's assigned floor
   useEffect(() => {
     const loadFloor = async () => {
       try {
         const key = `floor_${sanitizeKey(name)}_${sanitizeKey(event)}`;
-        console.log('📦 Checking SecureStore key:', key);
-
         const cached = await SecureStore.getItemAsync(key);
         if (cached) {
-          console.log('✅ Found cached floor:', cached);
           setFloor(cached);
           return;
         }
@@ -82,7 +84,6 @@ export default function VolunteerDashboard() {
         const snapshot = await getDocs(q);
         const doc = snapshot.docs[0]?.data();
         if (doc?.floor) {
-          console.log('🛜 Fetched floor from Firestore:', doc.floor);
           setFloor(doc.floor);
           await SecureStore.setItemAsync(key, doc.floor);
         }
@@ -91,9 +92,34 @@ export default function VolunteerDashboard() {
       }
     };
 
-    const timeout = setTimeout(loadFloor, 100);
-    return () => clearTimeout(timeout);
+    loadFloor();
   }, []);
+
+  // Load assigned team leads
+  useEffect(() => {
+    if (!floor) return;
+
+    const fetchTeamLeads = async () => {
+      try {
+        const formattedFloor = floor.toLowerCase().includes('floor')
+          ? floor
+          : `Floor ${floor}`;
+
+        const leadsQuery = query(
+          collection(db, 'scheduled_volunteers'),
+          where('assignment', '==', formattedFloor),
+          where('role', '==', 'teamlead')
+        );
+
+        const snapshot = await getDocs(leadsQuery);
+        setFloorTeamLeads(snapshot.docs.map(doc => doc.data()));
+      } catch (error) {
+        console.error('Error fetching team leads:', error);
+      }
+    };
+
+    fetchTeamLeads();
+  }, [floor]);
 
   const handleLogout = async () => {
     Alert.alert(
@@ -112,7 +138,6 @@ export default function VolunteerDashboard() {
       ]
     );
   };
-  
 
   const handleHelpRequest = async () => {
     try {
@@ -130,9 +155,7 @@ export default function VolunteerDashboard() {
 
       Alert.alert(
         'Help Request Sent',
-        `A team lead has been notified.${
-          floor ? ` (Floor: ${floor})` : ''
-        }\nPlease stay where you are.`,
+        `A team lead has been notified.${floor ? ` (Floor: ${floor})` : ''}\nPlease stay where you are.`,
         [{ text: 'OK' }]
       );
     } catch (error) {
@@ -154,6 +177,28 @@ export default function VolunteerDashboard() {
             : '⚠️ Please check in with your team lead to get your assignment.'}
         </Text>
 
+        {/* Always show the Team Leads Card */}
+        <View style={[styles.infoCard, { borderColor: theme.text }]}>
+          <Text style={[styles.cardTitle, { color: theme.text }]}>🧑‍🤝‍🧑 Your Team Leads</Text>
+
+          {floor === '' ? (
+            <Text style={[styles.cardText, { color: theme.text }]}>
+              You haven't been assigned to a floor yet. Please check in with your team lead or admin.
+            </Text>
+          ) : floorTeamLeads.length > 0 ? (
+            floorTeamLeads.map((lead, index) => (
+              <Text key={index} style={[styles.cardText, { color: theme.text }]}>
+                {lead.first_name} {lead.last_name}
+              </Text>
+            ))
+          ) : (
+            <Text style={[styles.cardText, { color: theme.text }]}>
+              Team leads not yet assigned.
+            </Text>
+          )}
+        </View>
+
+        {/* Schedule and Highlights */}
         <Text style={[styles.subText, { color: theme.text }]}>
           {isATW
             ? 'Here’s what’s coming up at Atlanta Tech Week:'
@@ -164,7 +209,6 @@ export default function VolunteerDashboard() {
           upcomingBlocks.map((block, index) => (
             <View key={index} style={[styles.scheduleCard, { borderColor: theme.text }]}>
               <Text style={[styles.cardTitle, { color: theme.text }]}>📅 {block.label}</Text>
-
               {block.items.map((item, i) => (
                 <View key={i} style={styles.scheduleItem}>
                   <Text style={[styles.scheduleTime, { color: theme.text }]}>
@@ -193,7 +237,6 @@ export default function VolunteerDashboard() {
           </Text>
         )}
 
-        {/* ⚡️ Today’s Highlights (now dynamic) */}
         {highlights.length > 0 && (
           <View style={[styles.infoCard, { borderColor: theme.text }]}>
             <Text style={[styles.cardTitle, { color: theme.text }]}>⚡ Today’s Highlights</Text>
@@ -203,7 +246,7 @@ export default function VolunteerDashboard() {
           </View>
         )}
 
-        {/* 🧰 Quick Tips */}
+        {/* Quick Tips */}
         <View style={[styles.infoCard, { borderColor: theme.text }]}>
           <Text style={[styles.cardTitle, { color: theme.text }]}>🧰 Quick Tips</Text>
           <Text style={[styles.cardText, { color: theme.text }]}>
@@ -225,21 +268,18 @@ export default function VolunteerDashboard() {
         </View>
       </ScrollView>
 
+      {/* Bottom Nav */}
       <View style={[styles.footer, { borderTopColor: theme.text, backgroundColor: theme.background }]}>
         <IconButton
           label="Briefing"
           icon={<MaterialIcons name="menu-book" size={28} color={theme.text} />}
-          onPress={() =>
-            Linking.openURL('https://docs.google.com/document/d/1SOTpiN8kImUlg8pwKnOA5RvYTYM7PztG3Cx1q5LwUFM/edit?usp=sharing')
-          }
+          onPress={() => Linking.openURL('https://docs.google.com/document/d/1SOTpiN8kImUlg8pwKnOA5RvYTYM7PztG3Cx1q5LwUFM')}
           theme={theme}
         />
         <IconButton
           label="FAQ"
           icon={<MaterialIcons name="help-outline" size={28} color={theme.text} />}
-          onPress={() =>
-            Linking.openURL('https://docs.google.com/document/d/1hfUp3M084ql5a4iMtezsJbVbQZEAnkUBMo63WZozphw/edit?usp=sharing')
-          }
+          onPress={() => Linking.openURL('https://docs.google.com/document/d/1hfUp3M084ql5a4iMtezsJbVbQZEAnkUBMo63WZozphw')}
           theme={theme}
         />
         <IconButton
@@ -259,6 +299,7 @@ export default function VolunteerDashboard() {
   );
 }
 
+// Icon button reusable component
 function IconButton({ label, icon, onPress, theme }) {
   return (
     <TouchableOpacity style={styles.iconButton} onPress={onPress}>
@@ -268,6 +309,7 @@ function IconButton({ label, icon, onPress, theme }) {
   );
 }
 
+// Schedule time blocks helper
 function getTimeBlockEvents(schedule, isATW) {
   const now = new Date();
   const currentHour = now.getHours() + now.getMinutes() / 60;
@@ -296,10 +338,10 @@ function getTimeBlockEvents(schedule, isATW) {
       return [{ label: block.label, items: blockEvents.slice(0, 3) }];
     }
   }
-
   return [];
 }
 
+// Highlights helper
 function getHighlightsFromSchedule(schedule) {
   const prioritize = (label = '', location = '') => {
     const text = `${label} ${location}`.toLowerCase();
@@ -308,7 +350,7 @@ function getHighlightsFromSchedule(schedule) {
     if (text.includes('silicon south')) return 3;
     if (text.includes('fireside')) return 4;
     if (text.includes('closing') || text.includes('opening')) return 5;
-    return 6; // fallback priority for sub-stages or other good stuff
+    return 6;
   };
 
   const getDecimalTime = (timeStr) => {
@@ -318,25 +360,21 @@ function getHighlightsFromSchedule(schedule) {
   };
 
   return schedule
-    .map((event) => {
+    .map(event => {
       const label = event.label?.toLowerCase() || '';
       const location = event.location?.toLowerCase() || '';
       const time = event.time || event.start || '00:00';
       const rank = prioritize(label, location);
       return { ...event, rank, timeVal: getDecimalTime(time) };
     })
-    .filter((e) => e.rank < 6)
-    .sort((a, b) => {
-      if (a.rank === b.rank) return a.timeVal - b.timeVal;
-      return a.rank - b.rank;
-    })
+    .filter(e => e.rank < 6)
+    .sort((a, b) => a.rank === b.rank ? a.timeVal - b.timeVal : a.rank - b.rank)
     .slice(0, 3)
-    .map((e) => {
+    .map(e => {
       const time = e.time || `${e.start} – ${e.end}`;
       return `${e.label} at ${time}${e.location ? ` (${e.location})` : ''}`;
     });
 }
-
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

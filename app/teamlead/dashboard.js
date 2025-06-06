@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Linking,
-  Platform,
   Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -18,8 +17,6 @@ import {
   query,
   where,
   getDocs,
-  doc,
-  updateDoc,
   addDoc,
 } from "firebase/firestore";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -42,9 +39,10 @@ export default function TeamLeadDashboard() {
   const theme = themes[event] || themes.RenderATL;
 
   const [teamLeadFloor, setTeamLeadFloor] = useState("Main Floor");
-  const [helpRequests, setHelpRequests] = useState([]);
   const [scheduledVolunteers, setScheduledVolunteers] = useState([]);
-  const [loggingOut, setLoggingOut] = useState(false);
+  const [coLeads, setCoLeads] = useState([]);
+  const [allTeamLeads, setAllTeamLeads] = useState([]);
+  const [showAllLeads, setShowAllLeads] = useState(false);
 
   const makeSecureKey = (key) => key.replace(/[^a-zA-Z0-9._-]/g, "_");
 
@@ -75,35 +73,51 @@ export default function TeamLeadDashboard() {
   }, [name, event]);
 
   useEffect(() => {
-    const fetchHelpRequests = async () => {
+    const fetchScheduledVolunteers = async () => {
       try {
         const q = query(
-          collection(db, "help_requests"),
-          where("event", "==", event),
-          where("resolved", "==", false),
-          where("floor", "==", teamLeadFloor)
+          collection(db, "scheduled_volunteers"),
+          where("assignment", "==", teamLeadFloor),
+          where("role", "==", "volunteer")
         );
         const snapshot = await getDocs(q);
-        setHelpRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        setScheduledVolunteers(snapshot.docs.map(doc => doc.data()));
       } catch (error) {
-        console.error("Error fetching help requests:", error);
+        console.error("Error fetching scheduled volunteers:", error);
       }
     };
 
-    const fetchScheduledVolunteers = async () => {
-      const q = query(
-        collection(db, "scheduled_volunteers"),
-        where("event", "==", event),
-        where("floor", "==", teamLeadFloor),
-        where("checkedIn", "==", false)
-      );
-      const snapshot = await getDocs(q);
-      setScheduledVolunteers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).slice(0, 5));
+    const fetchCoLeads = async () => {
+      try {
+        const q = query(
+          collection(db, "scheduled_volunteers"),
+          where("assignment", "==", teamLeadFloor),
+          where("role", "==", "teamlead")
+        );
+        const snapshot = await getDocs(q);
+        setCoLeads(snapshot.docs.map(doc => doc.data()));
+      } catch (error) {
+        console.error("Error fetching co-leads:", error);
+      }
     };
 
-    fetchHelpRequests();
+    const fetchAllTeamLeads = async () => {
+      try {
+        const q = query(
+          collection(db, "scheduled_volunteers"),
+          where("role", "==", "teamlead")
+        );
+        const snapshot = await getDocs(q);
+        setAllTeamLeads(snapshot.docs.map(doc => doc.data()));
+      } catch (error) {
+        console.error("Error fetching all team leads:", error);
+      }
+    };
+
     fetchScheduledVolunteers();
-  }, [event, teamLeadFloor]);
+    fetchCoLeads();
+    fetchAllTeamLeads();
+  }, [teamLeadFloor]);
 
   const handleHelpRequest = async () => {
     try {
@@ -118,14 +132,12 @@ export default function TeamLeadDashboard() {
         submittedBy: name,
         floor: teamLeadFloor
       });
-  
       Alert.alert("Help request sent successfully!");
     } catch (err) {
       console.error("Error submitting help request:", err);
       Alert.alert("Error submitting help request");
     }
   };
-  
 
   const handleLogout = async () => {
     Alert.alert(
@@ -155,6 +167,7 @@ export default function TeamLeadDashboard() {
           You're checked in on {teamLeadFloor}
         </Text>
 
+        {/* 🧰 Team Lead Tools */}
         <View style={[styles.section, { borderColor: theme.text }]}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
             🧰 Team Lead Tools
@@ -183,25 +196,7 @@ export default function TeamLeadDashboard() {
           </TouchableOpacity>
         </View>
 
-        <View style={[styles.section, { borderColor: theme.text }]}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>
-            👀 Scheduled Volunteers
-          </Text>
-          {scheduledVolunteers.length > 0 ? (
-            scheduledVolunteers.map((vol, index) => (
-              <View key={index} style={[styles.item, { marginBottom: 8 }]}>
-                <Text style={{ color: theme.text }}>
-                  {vol.first_name} {vol.last_name}
-                </Text>
-              </View>
-            ))
-          ) : (
-            <Text style={{ color: theme.text }}>
-              All volunteers are checked in!
-            </Text>
-          )}
-        </View>
-
+        {/* 📖 Quick Links */}
         <View style={[styles.section, { borderColor: theme.text }]}>
           <Text style={[styles.sectionTitle, { color: theme.text }]}>
             📖 Quick Links
@@ -222,13 +217,67 @@ export default function TeamLeadDashboard() {
           </TouchableOpacity>
         </View>
 
-        <View style={{ marginTop: 12 }}>
-          <Text style={[styles.footerNote, { color: theme.text }]}>
-            📘 The full volunteer schedule is available in the Briefing Book.
+        {/* 👥 Volunteers Assigned to You */}
+        <View style={[styles.section, { borderColor: theme.text }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            👥 Volunteers Assigned to You
           </Text>
+          {scheduledVolunteers.length > 0 ? (
+            scheduledVolunteers.map((vol, index) => (
+              <View key={index} style={[styles.item, { marginBottom: 8 }]}>
+                <Text style={{ color: theme.text }}>
+                  {vol.first_name} {vol.last_name} ({vol.shift})
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={{ color: theme.text }}>
+              No volunteers assigned to this floor.
+            </Text>
+          )}
+        </View>
+
+        {/* 🧑‍🤝‍🧑 Team Leads on This Floor */}
+        <View style={[styles.section, { borderColor: theme.text }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>
+            🧑‍🤝‍🧑 Team Leads on This Floor
+          </Text>
+          {coLeads.length > 0 ? (
+            coLeads.map((lead, index) => (
+              <View key={index} style={[styles.item, { marginBottom: 8 }]}>
+                <Text style={{ color: theme.text }}>
+                  {lead.first_name} {lead.last_name}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={{ color: theme.text }}>
+              No Team Leads assigned to this floor.
+            </Text>
+          )}
+        </View>
+
+        {/* 📋 View All Team Leads */}
+        <View style={[styles.section, { borderColor: theme.text }]}>
+          <TouchableOpacity onPress={() => setShowAllLeads(!showAllLeads)}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>
+              📋 {showAllLeads ? "Hide All Team Leads" : "View All Team Leads"}
+            </Text>
+          </TouchableOpacity>
+
+          {showAllLeads && (
+            allTeamLeads.map((lead, index) => (
+              <View key={index} style={[styles.item, { marginBottom: 8 }]}>
+                <Text style={{ color: theme.text }}>
+                  {lead.first_name} {lead.last_name} — {lead.assignment}
+                </Text>
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
 
+      {/* Footer Navigation */}
       <View style={[styles.footer, { borderTopColor: theme.text, backgroundColor: theme.background }]}>
         <IconButton
           label="Check In"
@@ -282,5 +331,4 @@ const styles = StyleSheet.create({
   footer: { flexDirection: "row", justifyContent: "space-around", borderTopWidth: 2, paddingVertical: 12 },
   iconButton: { alignItems: "center" },
   iconLabel: { marginTop: 4, fontSize: 14, fontWeight: "600" },
-  footerNote: { marginTop: 8, marginBottom: 8, fontSize: 12, textAlign: "center", fontStyle: "italic" },
 });

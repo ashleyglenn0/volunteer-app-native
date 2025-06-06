@@ -36,7 +36,8 @@
       "router": {},
       "eas": {
         "projectId": "f3c4cdd5-71bb-4e74-a126-4649fd0e61da"
-      }
+      },
+      "QR_BYPASS": "true"
     },
     "owner": "ashleyglenn0"
   }

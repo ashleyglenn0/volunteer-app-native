@@ -8,8 +8,8 @@ import {
 } from 'react-native';
 import Camera from 'expo-camera';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import Constants from 'expo-constants';
 
-// Theme colors
 const themes = {
   RenderATL: {
     background: '#fdf0e2',
@@ -21,8 +21,7 @@ const themes = {
   },
 };
 
-// ✅ DEV BYPASS toggle (works for both iOS & Android in emulator / test builds)
-const isDevBypass = __DEV__ || process.env.EXPO_PUBLIC_QR_BYPASS === 'true';
+const isDevBypass = __DEV__ || Constants.expoConfig?.extra?.QR_BYPASS === 'true';
 
 export default function ScanAdminQR() {
   const [hasPermission, setHasPermission] = useState(null);
@@ -34,7 +33,7 @@ export default function ScanAdminQR() {
   useEffect(() => {
     (async () => {
       if (isDevBypass) {
-        setHasPermission(true); // ✅ Skip permission entirely in bypass mode
+        setHasPermission(true);
         return;
       }
 
@@ -48,27 +47,31 @@ export default function ScanAdminQR() {
     setScanned(true);
 
     if (data.includes('event=')) {
-      router.push(data); // Navigate to checkin
+      router.push(data);
     } else {
       alert('Invalid QR code.');
       setScanned(false);
     }
   };
 
-  // ✅ Use bypass logic for simulated scan view
+  // ✅ Dev Bypass Mode
   if (isDevBypass && hasPermission) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background }]}>
         <Text style={[styles.instruction, { color: theme.text }]}>
-          Simulated: Tap below to simulate scan
+          Dev Simulation Mode
         </Text>
+
         <TouchableOpacity
           onPress={() =>
-            router.push({ pathname: '/checkin', params: { event } })
+            router.push({
+              pathname: '/checkin',
+              params: { event: event || 'RenderATL' }
+            })
           }
         >
           <Text style={[styles.simulateBtn, { color: theme.text }]}>
-            ▶️ Simulate Scan ➡️ Go to Check-In
+            ▶️ Simulate QR Scan ➡️ Go to Check-In
           </Text>
         </TouchableOpacity>
       </View>
